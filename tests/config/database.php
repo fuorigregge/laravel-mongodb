@@ -4,12 +4,14 @@ return array(
 
 	'connections' => array(
 
-		'mongodb' => array(
-			'name'	   => 'mongodb',
-			'driver'   => 'mongodb',
-			'host'     => 'localhost',
-			'database' => 'unittest',
-		),
+        'mongodb' => array(
+            'driver'   => 'mongodb',
+            'host'     => '127.0.0.1',
+            'port'     => 3001,
+            //'username' => 'username',
+            //'password' => 'password',
+            'database' => 'meteor'
+        ),
 
 		'mysql' => array(
 			'driver'    => 'mysql',

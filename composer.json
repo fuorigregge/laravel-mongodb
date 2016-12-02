@@ -14,7 +14,8 @@
         "illuminate/support": "4.2.*",
         "illuminate/container": "4.2.*",
         "illuminate/database": "4.2.*",
-        "illuminate/events": "4.2.*"
+        "illuminate/events": "4.2.*",
+        "mongodb/mongodb": "^1.0.0"
     },
     "require-dev": {
         "orchestra/testbench": "2.2.*",

@@ -1,8 +1,8 @@
 <?php namespace Jenssegers\Mongodb\Query;
 
-use MongoId;
-use MongoRegex;
-use MongoDate;
+use MongoDB\BSON\Regex;
+use MongoDB\BSON\UTCDateTime;
+use MongoDB\BSON\ObjectID;
 use DateTime;
 use Closure;
 
@@ -33,6 +33,14 @@ class Builder extends QueryBuilder {
      * @var int
      */
     public $timeout;
+
+    /**
+     * Custom options to add to the query.
+     *
+     * @var array
+     */
+    public $options = [];
+
 
     /**
      * All of the available clause operators.
@@ -211,11 +219,19 @@ class Builder extends QueryBuilder {
             if ($this->limit)       $pipeline[] = array('$limit' => $this->limit);
             if ($this->projections) $pipeline[] = array('$project' => $this->projections);
 
+            $options = [
+                'typeMap' => ['root' => 'array', 'document' => 'array'],
+            ];
+            // Add custom query options
+            if (count($this->options)) {
+                $options = array_merge($options, $this->options);
+            }
+
             // Execute aggregation
-            $results = $this->collection->aggregate($pipeline);
+            $results = iterator_to_array($this->collection->aggregate($pipeline, $options));
 
             // Return results
-            return $results['result'];
+            return $results;
         }
 
         // Distinct query
@@ -225,7 +241,11 @@ class Builder extends QueryBuilder {
             $column = isset($this->columns[0]) ? $this->columns[0] : '_id';
 
             // Execute distinct
-            $result = $this->collection->distinct($column, $wheres);
+            if ($wheres) {
+                $result = $this->collection->distinct($column, $wheres);
+            } else {
+                $result = $this->collection->distinct($column);
+            }
 
             return $result;
         }
@@ -233,28 +253,41 @@ class Builder extends QueryBuilder {
         // Normal query
         else
         {
-            $columns = array();
-
+            $columns = [];
             // Convert select columns to simple projections.
-            foreach ($this->columns as $column)
-            {
+            foreach ($this->columns as $column) {
                 $columns[$column] = true;
             }
-
             // Add custom projections.
-            if ($this->projections)
-            {
+            if ($this->projections) {
                 $columns = array_merge($columns, $this->projections);
             }
-
+            $options = [];
+            // Apply order, offset, limit and projection
+            if ($this->timeout) {
+                $options['maxTimeMS'] = $this->timeout;
+            }
+            if ($this->orders) {
+                $options['sort'] = $this->orders;
+            }
+            if ($this->offset) {
+                $options['skip'] = $this->offset;
+            }
+            if ($this->limit) {
+                $options['limit'] = $this->limit;
+            }
+            if ($columns) {
+                $options['projection'] = $columns;
+            }
+            // if ($this->hint)    $cursor->hint($this->hint);
+            // Fix for legacy support, converts the results to arrays instead of objects.
+            $options['typeMap'] = ['root' => 'array', 'document' => 'array'];
+            // Add custom query options
+            if (count($this->options)) {
+                $options = array_merge($options, $this->options);
+            }
             // Execute query and get MongoCursor
-            $cursor = $this->collection->find($wheres, $columns);
-
-            // Apply order, offset and limit
-            if ($this->timeout) $cursor->timeout($this->timeout);
-            if ($this->orders)  $cursor->sort($this->orders);
-            if ($this->offset)  $cursor->skip($this->offset);
-            if ($this->limit)   $cursor->limit($this->limit);
+            $cursor = $this->collection->find($wheres, $options);
 
             // Return results as an array with numeric keys
             return iterator_to_array($cursor, false);
@@ -270,7 +303,7 @@ class Builder extends QueryBuilder {
     {
         $key = array(
             'connection' => $this->connection->getName(),
-            'collection' => $this->collection->getName(),
+            'collection' => $this->collection->getCollectionName(),
             'wheres'     => $this->wheres,
             'columns'    => $this->columns,
             'groups'     => $this->groups,
@@ -391,9 +424,9 @@ class Builder extends QueryBuilder {
         if ( ! $batch) $values = array($values);
 
         // Batch insert
-        $result = $this->collection->batchInsert($values);
+        $result = $this->collection->insertMany($values);
 
-        return (1 == (int) $result['ok']);
+        return (1 == (int) $result->isAcknowledged());
     }
 
     /**
@@ -405,17 +438,16 @@ class Builder extends QueryBuilder {
      */
     public function insertGetId(array $values, $sequence = null)
     {
-        $result = $this->collection->insert($values);
+        $result = $this->collection->insertOne($values);
 
-        if (1 == (int) $result['ok'])
+        if (1 == (int) $result->isAcknowledged())
         {
-            if (is_null($sequence))
-            {
+            if (is_null($sequence)) {
                 $sequence = '_id';
             }
 
             // Return id
-            return $values[$sequence];
+            return $sequence == '_id' ? $result->getInsertedId() : $values[$sequence];
         }
     }
 
@@ -508,13 +540,13 @@ class Builder extends QueryBuilder {
     {
         $wheres = $this->compileWheres();
 
-        $result = $this->collection->remove($wheres);
+        $result = $this->collection->DeleteMany($wheres);
 
-        if (1 == (int) $result['ok'])
-        {
-            return $result['n'];
+        if (1 == (int) $result->isAcknowledged()) {
+
+            return $result->getDeletedCount();
+
         }
-
         return 0;
     }
 
@@ -541,9 +573,9 @@ class Builder extends QueryBuilder {
      */
     public function truncate()
     {
-        $result = $this->collection->remove();
+        $result = $this->collection->drop();
 
-        return (1 == (int) $result['ok']);
+        return (1 == (int) $result->ok);
     }
 
      /**
@@ -704,13 +736,11 @@ class Builder extends QueryBuilder {
 
         $wheres = $this->compileWheres();
 
-        $result = $this->collection->update($wheres, $query, $options);
+        $result = $this->collection->UpdateMany($wheres, $query, $options);
 
-        if (1 == (int) $result['ok'])
-        {
-            return $result['n'];
+        if (1 == (int) $result->isAcknowledged()) {
+            return $result->getModifiedCount() ? $result->getModifiedCount() : $result->getUpsertedCount();
         }
-
         return 0;
     }
 
@@ -724,7 +754,7 @@ class Builder extends QueryBuilder {
     {
         if (is_string($id) and strlen($id) === 24 and ctype_xdigit($id))
         {
-            return new MongoId($id);
+            return new ObjectID($id);
         }
 
         return $id;
@@ -819,7 +849,7 @@ class Builder extends QueryBuilder {
             // Convert DateTime values to MongoDate.
             if (isset($where['value']) and $where['value'] instanceof DateTime)
             {
-                $where['value'] = new MongoDate($where['value']->getTimestamp());
+                $where['value'] = new UTCDateTime($where['value']->getTimestamp() * 1000);
             }
 
             // The next item in a "chain" of wheres devices the boolean of the
@@ -858,7 +888,7 @@ class Builder extends QueryBuilder {
     {
         extract($where);
 
-        // Replace like with a MongoRegex instance.
+        // Replace like with a Regex instance.
         if ($operator == 'like')
         {
             $operator = '=';
@@ -868,20 +898,20 @@ class Builder extends QueryBuilder {
             if ( ! starts_with($value, '%')) $regex = '^' . $regex;
             if ( ! ends_with($value, '%'))   $regex = $regex . '$';
 
-            $value = new MongoRegex("/$regex/i");
+            $value = new Regex("/$regex/i");
         }
 
         // Manipulate regexp operations.
         elseif (in_array($operator, array('regexp', 'not regexp', 'regex', 'not regex')))
         {
-            // Automatically convert regular expression strings to MongoRegex objects.
-            if ( ! $value instanceof MongoRegex)
+            // Automatically convert regular expression strings to Regex objects.
+            if ( ! $value instanceof Regex)
             {
-                $value = new MongoRegex($value);
+                $value = new Regex($value);
             }
 
             // For inverse regexp operations, we can just use the $not operator
-            // and pass it a MongoRegex instence.
+            // and pass it a Regex instence.
             if (starts_with($operator, 'not'))
             {
                 $operator = 'not';

@@ -38,7 +38,7 @@ class AuthTest extends TestCase {
         $reminder = DB::collection('password_reminders')->first();
         $this->assertEquals('john@doe.com', $reminder['email']);
         $this->assertNotNull($reminder['token']);
-        $this->assertInstanceOf('MongoDate', $reminder['created_at']);
+        $this->assertInstanceOf('MongoDB\BSON\UTCDateTime', $reminder['created_at']);
 
         $credentials = array(
             'email' => 'john@doe.com',

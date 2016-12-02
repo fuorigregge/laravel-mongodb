@@ -1,6 +1,6 @@
 <?php namespace Jenssegers\Mongodb\Relations;
 
-use MongoId;
+use MongoDB\BSON\ObjectID;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\Relation;

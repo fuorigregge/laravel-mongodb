@@ -1,7 +1,8 @@
 <?php namespace Jenssegers\Mongodb\Auth;
 
 use DateTime;
-use MongoDate;
+use DateTimeZone;
+use MongoDB\BSON\UTCDateTime;
 
 class DatabaseReminderRepository extends \Illuminate\Auth\Reminders\DatabaseReminderRepository {
 
@@ -14,7 +15,7 @@ class DatabaseReminderRepository extends \Illuminate\Auth\Reminders\DatabaseRemi
 	 */
 	protected function getPayload($email, $token)
 	{
-		return array('email' => $email, 'token' => $token, 'created_at' => new MongoDate);
+		return array('email' => $email, 'token' => $token, 'created_at' => new UTCDateTime(round(microtime(true) * 1000)));
 	}
 
 	/**
@@ -26,11 +27,11 @@ class DatabaseReminderRepository extends \Illuminate\Auth\Reminders\DatabaseRemi
 	protected function reminderExpired($reminder)
 	{
 		// Convert MongoDate to a date string.
-		if ($reminder['created_at'] instanceof MongoDate)
+		if ($reminder['created_at'] instanceof UTCDateTime)
 		{
-			$date = new DateTime;
+            $date = $reminder['created_at']->toDateTime();
 
-			$date->setTimestamp($reminder['created_at']->sec);
+            $date->setTimezone(new DateTimeZone(date_default_timezone_get()));
 
 			$reminder['created_at'] = $date->format('Y-m-d H:i:s');
 		}

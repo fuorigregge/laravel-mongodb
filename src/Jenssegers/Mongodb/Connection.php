@@ -2,7 +2,8 @@
 
 use Jenssegers\Mongodb\Collection;
 use Jenssegers\Mongodb\Query\Builder as QueryBuilder;
-use MongoClient;
+//use MongoClient;
+use MongoDB\Client;
 
 class Connection extends \Illuminate\Database\Connection {
 
@@ -40,7 +41,10 @@ class Connection extends \Illuminate\Database\Connection {
         $this->connection = $this->createConnection($dsn, $config, $options);
 
         // Select database
-        $this->db = $this->connection->{$config['database']};
+        $this->db = $this->connection->selectDatabase($config['database']);
+
+        $this->useDefaultPostProcessor();
+        $this->useDefaultSchemaGrammar();
     }
 
     /**
@@ -114,7 +118,7 @@ class Connection extends \Illuminate\Database\Connection {
      * @param  string  $dsn
      * @param  array   $config
      * @param  array   $options
-     * @return MongoClient
+     * @return Manager
      */
     protected function createConnection($dsn, array $config, array $options)
     {
@@ -130,7 +134,7 @@ class Connection extends \Illuminate\Database\Connection {
             $options['password'] = $config['password'];
         }
 
-        return new MongoClient($dsn, $options);
+        return new Client($dsn, $options);
     }
 
     /**
@@ -140,7 +144,7 @@ class Connection extends \Illuminate\Database\Connection {
      */
     public function disconnect()
     {
-        $this->connection->close();
+        unset($this->connection);
     }
 
     /**

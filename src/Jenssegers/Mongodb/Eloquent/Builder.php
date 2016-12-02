@@ -1,8 +1,10 @@
 <?php namespace Jenssegers\Mongodb\Eloquent;
 
 use MongoCursor;
+use MongoDB\Driver\Cursor;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
+use MongoDB\Model\BSONDocument;
 
 class Builder extends EloquentBuilder {
 
@@ -214,21 +216,31 @@ class Builder extends EloquentBuilder {
      */
     public function raw($expression = null)
 	{
-		// Get raw results from the query builder.
+        // Get raw results from the query builder.
 		$results = $this->query->raw($expression);
 
 		// Convert MongoCursor results to a collection of models.
-		if ($results instanceof MongoCursor)
+		if ($results instanceof Cursor)
 		{
 			$results = iterator_to_array($results, false);
 
 			return $this->model->hydrate($results);
 		}
 
+        // Convert Mongo BSONDocument to a single object.
+        elseif ($results instanceof BSONDocument) {
+            $results = $results->getArrayCopy();
+            $model = $this->model->newFromBuilder((array) $results);
+
+            $model->setConnection($this->model->getConnection());
+
+            return $model;
+        }
+
 		// The result is a single object.
 		else if (is_array($results) and array_key_exists('_id', $results))
 		{
-			$model = $this->model->newFromBuilder($results);
+			$model = $this->model->newFromBuilder((array) $results);
 
 			$model->setConnection($this->model->getConnection());
 

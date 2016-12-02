@@ -11,8 +11,8 @@ use Jenssegers\Mongodb\Relations\EmbedsOne;
 
 use Carbon\Carbon;
 use DateTime;
-use MongoId;
-use MongoDate;
+use MongoDB\BSON\UTCDateTime;
+use MongoDB\BSON\ObjectID;
 
 abstract class Model extends \Jenssegers\Eloquent\Model {
 
@@ -61,7 +61,7 @@ abstract class Model extends \Jenssegers\Eloquent\Model {
         }
 
         // Convert MongoId's to string.
-        if ($value instanceof MongoId)
+        if ($value instanceof ObjectID)
         {
             return (string) $value;
         }
@@ -161,7 +161,7 @@ abstract class Model extends \Jenssegers\Eloquent\Model {
     public function fromDateTime($value)
     {
         // If the value is already a MongoDate instance, we don't need to parse it.
-        if ($value instanceof MongoDate)
+        if ($value instanceof UTCDateTime)
         {
             return $value;
         }
@@ -172,7 +172,7 @@ abstract class Model extends \Jenssegers\Eloquent\Model {
             $value = parent::asDateTime($value);
         }
 
-        return new MongoDate($value->getTimestamp());
+        return new UTCDateTime($value->getTimestamp() * 1000);
     }
 
     /**
@@ -184,9 +184,9 @@ abstract class Model extends \Jenssegers\Eloquent\Model {
     protected function asDateTime($value)
     {
         // Convert MongoDate instances.
-        if ($value instanceof MongoDate)
+        if ($value instanceof UTCDateTime)
         {
-            return Carbon::createFromTimestamp($value->sec);
+            return Carbon::createFromTimestamp($value->toDateTime()->getTimestamp());
         }
 
         return parent::asDateTime($value);
@@ -209,7 +209,7 @@ abstract class Model extends \Jenssegers\Eloquent\Model {
      */
     public function freshTimestamp()
     {
-        return new MongoDate;
+        return new UTCDateTime(round(microtime(true) * 1000));
     }
 
     /**
@@ -340,7 +340,7 @@ abstract class Model extends \Jenssegers\Eloquent\Model {
         // nicely when your models are converted to JSON.
         foreach ($attributes as $key => &$value)
         {
-            if ($value instanceof MongoId)
+            if ($value instanceof ObjectID)
             {
                 $value = (string) $value;
             }

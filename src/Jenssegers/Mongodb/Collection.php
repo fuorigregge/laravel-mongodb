@@ -1,8 +1,9 @@
 <?php namespace Jenssegers\Mongodb;
 
 use Exception;
-use MongoCollection;
+use MongoDB\Collection as MongoCollection;
 use Jenssegers\Mongodb\Connection;
+use MongoDB\BSON\ObjectID;
 
 class Collection {
 
@@ -64,7 +65,7 @@ class Collection {
         $time = $this->connection->getElapsedTime($start);
 
         // Convert the query to a readable string.
-        $queryString = $this->collection->getName() . '.' . $method . '(' . join(',', $query) . ')';
+        $queryString = $this->collection->getCollectionName() . '.' . $method . '(' . join(',', $query) . ')';
 
         $this->connection->logQuery($queryString, array(), $time);
 
